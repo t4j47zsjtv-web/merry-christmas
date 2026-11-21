@@ -1,0 +1,1639 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="description" content="粉色光粒子圣诞树 · 丝带、爱心、暴雪与 90 扇祝福窗，Merry Christmas。" />
+<meta property="og:title" content="Merry Christmas · 粉色光粒子圣诞树" />
+<meta property="og:description" content="点开看看：一棵由光粒子组成的圣诞树，树顶有一颗爱心。" />
+<meta name="theme-color" content="#0a0410" />
+<title>Merry Christmas · 粉色光粒子圣诞树</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;background:#050207;overflow:hidden;}
+  body{
+    font-family:Georgia,"Times New Roman","Songti SC","STSong",serif;
+    -webkit-font-smoothing:antialiased;
+    cursor:default;
+  }
+  #c{position:fixed;inset:0;width:100%;height:100%;display:block;}
+  /* 暗角，让视线集中在树上 */
+  .vignette{
+    position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(118% 88% at 50% 46%,
+      rgba(0,0,0,0) 28%,
+      rgba(8,2,10,.30) 66%,
+      rgba(4,1,7,.68) 87%,
+      rgba(3,1,6,.90) 100%);
+  }
+  /* 祝福文字 */
+  .greet{
+    position:fixed;left:0;right:0;bottom:clamp(22px,5.5vh,64px);
+    text-align:center;pointer-events:none;
+    font-size:clamp(17px,2.5vw,34px);
+    letter-spacing:.46em;text-indent:.46em;
+    color:#ffe6f4;
+    opacity:0;transform:translateY(10px);
+    transition:opacity 2.4s ease 1.0s, transform 2.4s ease 1.0s;
+    text-shadow:
+      0 0 16px rgba(255,120,186,.90),
+      0 0 42px rgba(255,72,152,.60),
+      0 0 90px rgba(255,40,130,.36),
+      0 0 160px rgba(255,20,120,.20);
+  }
+  .greet.on{opacity:.95;transform:translateY(0);}
+  /* 音乐按钮 */
+  #snd{
+    position:fixed;right:18px;bottom:16px;
+    width:42px;height:42px;border-radius:50%;
+    border:1px solid rgba(255,150,200,.28);
+    background:rgba(255,120,180,.05);
+    color:rgba(255,205,232,.60);
+    font-size:15px;line-height:1;
+    display:grid;place-items:center;
+    cursor:pointer;padding:0;
+    transition:all .35s ease;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #snd:hover{border-color:rgba(255,170,212,.60);color:#ffe3f2;background:rgba(255,120,180,.13);}
+  #snd.playing{color:#ffd7ec;border-color:rgba(255,170,212,.55);}
+  #snd .slash{
+    position:absolute;width:20px;height:1px;background:rgba(255,160,205,.85);
+    transform:rotate(-45deg);transition:opacity .3s;
+  }
+  #snd.playing .slash{opacity:0;}
+  /* 点击提示 */
+  #hint{
+    position:fixed;left:0;right:0;bottom:clamp(8px,2.2vh,20px);
+    text-align:center;pointer-events:none;
+    font-size:11.5px;letter-spacing:.30em;text-indent:.30em;
+    color:rgba(255,198,228,.38);
+    font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    transition:opacity .9s ease;
+    animation:breathe 3.4s ease-in-out infinite;
+  }
+  #hint.hide{opacity:0;}
+  @keyframes breathe{0%,100%{opacity:.36}50%{opacity:.82}}
+
+  /* 环绕漂浮的祝福窗 */
+  #cards{position:fixed;inset:0;pointer-events:none;}
+  .card{
+    position:absolute;left:0;top:0;
+    transform:translate(-50%,-50%);
+    padding:7px 10px 8px;
+    border:1px solid rgba(255,168,214,.32);
+    border-radius:9px;
+    background:linear-gradient(155deg, rgba(255,126,186,.14), rgba(44,8,32,.30));
+    box-shadow:
+      0 0 10px rgba(255,96,172,.22),
+      inset 0 0 14px rgba(255,160,215,.05);
+    white-space:nowrap;
+    opacity:0;
+    will-change:transform,opacity;
+  }
+  .card b{
+    display:block;
+    font:400 10.5px/1.3 Georgia,"Times New Roman",serif;
+    letter-spacing:.20em;text-indent:.20em;
+    color:#ffeaf7;
+    text-shadow:0 0 10px rgba(255,120,190,.85);
+  }
+  .card i{
+    display:block;margin-top:5px;
+    font:400 10px/1.45 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    font-style:normal;
+    letter-spacing:.05em;
+    color:rgba(255,214,236,.85);
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="cards"></div>
+<div class="vignette"></div>
+<div class="greet" id="greet">Merry Christmas</div>
+<div id="hint">点击画面任意处 · 开启音乐</div>
+<button id="snd" aria-label="音乐开关"><span>♪</span><i class="slash"></i></button>
+
+<script>
+(() => {
+'use strict';
+
+/* =========================================================
+   粉色光粒子圣诞树
+   · 分层锥形树体：光粒子构成，有纵深感
+   · 粉红丝带螺旋缠绕，贴合每层裙边，收敛于树顶
+   · 树顶丝带散成光粒子，汇聚成一颗跳动的爱心
+   · 四周粉色粒子飘雪
+   · 树底一圈圈粉色涟漪
+   纯 Canvas 2D 手工三维投影 + 加色混合，无外部依赖
+   ========================================================= */
+
+const TAU = Math.PI * 2;
+const rnd = (a = 0, b = 1) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/* ---------------- 画布 ---------------- */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: false });
+const bloomCv = document.createElement('canvas');
+const bctx = bloomCv.getContext('2d');
+const bloom2 = document.createElement('canvas');
+const b2ctx = bloom2.getContext('2d');
+
+let W = 0, H = 0, DPR = 1, fovScale = 1, cx = 0, cy = 0, bgGrad = null;
+
+/* ---------------- 设备档位 ---------------- */
+/* 手机性能弱：粒子数量按比例缩减，但树的形状、丝带、爱心都不变 */
+const IS_MOBILE = (matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
+  && Math.min(window.innerWidth, window.innerHeight) < 900;
+const Q = IS_MOBILE ? 0.52 : 1;      // 粒子数量系数
+const DPR_CAP = IS_MOBILE ? 2 : 3;   // 手机不做 3 倍渲染
+
+/* ---------------- 场景尺寸 ---------------- */
+const TREE_H = 9.6;
+const BASE_R = 4.4;
+const TIERS = 8;
+const SPACING = TREE_H * 0.122;
+const TIER_H = TREE_H * 0.1525;
+const HEART_Y = TREE_H + 1.66;
+const HEART_SCALE = 1.14;
+let HEART_TOP = 0.78, HEART_BOT = -1.07;   // 心形本体上下极点（经典心形曲线）
+
+const RIB_TURNS = 10.5;
+const RIB_N = IS_MOBILE ? 620 : 900;
+const RIB_HW = 0.062;
+
+/* ---------------- 相机 ---------------- */
+const cam = { yaw: 0.85, pitch: 0.26, dist: 24, targetY: 5.2, fov: 40 * Math.PI / 180 };
+const B = { camx: 0, camy: 0, camz: 24, rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: -1 };
+
+const BOT_Y = -3.2;
+const topY = () => HEART_Y + HEART_TOP * HEART_SCALE + 0.40;
+
+function fitCamera() {
+  const fovTan = Math.tan(cam.fov / 2);
+  const TOP = topY();
+  const contentH = TOP - BOT_Y;
+  /* 横向只保证树本身放得下；涟漪、雪、卡片允许溢出画面，
+     否则在竖屏手机上取景会被这些“气氛元素”推得很远，树变得很小 */
+  const halfW = BASE_R + 0.6;
+  const aspect = Math.max(W / H, 0.32);
+  cam.dist = Math.max(
+    (contentH * 0.5) / fovTan,
+    (halfW) / (fovTan * aspect)
+  ) * 1.06;
+  cam.targetY = (TOP + BOT_Y) * 0.5;
+
+  /* 透视下“内容最上沿”会比正投影更高，迭代校正一次，避免顶到画幅 */
+  const probes = [[0, TOP, 0], [0, BOT_Y, 0], [halfW, 0, 0], [-halfW, 0, 0]];
+  for (let it = 0; it < 4; it++) {
+    updateCamera(0, 0);
+    let fy = 0, fx = 0;
+    for (let i = 0; i < probes.length; i++) {
+      const q = probes[i];
+      if (!project(q[0], q[1], q[2])) continue;
+      fy = Math.max(fy, Math.abs(P.y - cy) / (H * 0.5));
+      fx = Math.max(fx, Math.abs(P.x - cx) / (W * 0.5));
+    }
+    const over = Math.max(fy / 0.92, fx / (W / H < 0.9 ? 0.99 : 0.93));
+    if (over <= 1.001) break;
+    cam.dist *= over;
+  }
+}
+
+/* ---------------- 光点贴图 ---------------- */
+const TINT = [
+  [255, 252, 255],  // 0 近白
+  [255, 238, 249],  // 1 极浅粉
+  [255, 208, 234],  // 2 浅粉
+  [255, 172, 216],  // 3 粉
+  [255, 126, 190],  // 4 玫粉
+  [246, 78, 160]    // 5 深玫
+];
+const sprites = TINT.map(([r, g, b]) => {
+  const S = 96;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g2 = cv.getContext('2d');
+  const grd = g2.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  grd.addColorStop(0.00, `rgba(${r},${g},${b},1)`);
+  grd.addColorStop(0.05, `rgba(${r},${g},${b},0.95)`);
+  grd.addColorStop(0.11, `rgba(${r},${g},${b},0.56)`);
+  grd.addColorStop(0.20, `rgba(${r},${g},${b},0.21)`);
+  grd.addColorStop(0.34, `rgba(${r},${g},${b},0.06)`);
+  grd.addColorStop(0.58, `rgba(${r},${g},${b},0.012)`);
+  grd.addColorStop(1.00, `rgba(${r},${g},${b},0)`);
+  g2.fillStyle = grd;
+  g2.fillRect(0, 0, S, S);
+  return cv;
+});
+
+function spr(cIdx, x, y, size, alpha) {
+  if (alpha <= 0.004 || size <= 0.05) return;
+  const r = size * 2.05;
+  ctx.globalAlpha = alpha > 1 ? 1 : alpha;
+  ctx.drawImage(sprites[cIdx], x - r, y - r, r + r, r + r);
+}
+
+/* ---------------- 投影 ---------------- */
+const P = { x: 0, y: 0, k: 1, vz: 0 };
+
+function updateCamera(dt, t) {
+  cam.yaw += dt * 0.145;                                          // 自动缓慢旋转
+  const pitch = cam.pitch + Math.sin(t * 0.23) * 0.020;
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const px = Math.sin(cam.yaw) * cp * cam.dist;
+  const py = cam.targetY + sp * cam.dist;
+  const pz = Math.cos(cam.yaw) * cp * cam.dist;
+
+  B.camx = px; B.camy = py; B.camz = pz;
+
+  let fx = -px, fy = cam.targetY - py, fz = -pz;
+  const fl = Math.hypot(fx, fy, fz) || 1;
+  fx /= fl; fy /= fl; fz /= fl;
+  B.fx = fx; B.fy = fy; B.fz = fz;
+
+  let rx = -fz, ry = 0, rz = fx;
+  const rl = Math.hypot(rx, ry, rz) || 1;
+  rx /= rl; ry /= rl; rz /= rl;
+  B.rx = rx; B.ry = ry; B.rz = rz;
+
+  B.ux = ry * fz - rz * fy;
+  B.uy = rz * fx - rx * fz;
+  B.uz = rx * fy - ry * fx;
+
+  fovScale = (H * 0.5) / Math.tan(cam.fov / 2);
+}
+
+function project(x, y, z) {
+  const dx = x - B.camx, dy = y - B.camy, dz = z - B.camz;
+  const vz = dx * B.fx + dy * B.fy + dz * B.fz;
+  if (vz < 0.8) return false;
+  const vx = dx * B.rx + dy * B.ry + dz * B.rz;
+  const vy = dx * B.ux + dy * B.uy + dz * B.uz;
+  const k = fovScale / vz;
+  P.x = cx + vx * k;
+  P.y = cy - vy * k;
+  P.k = k;
+  P.vz = vz;
+  return true;
+}
+
+const fog = (vz) => clamp(1.12 - (vz - cam.dist) * 0.032, 0.52, 1.24);
+
+/* =========================================================
+   一、树体：分层锥面
+   ========================================================= */
+/* 每层都带一点随机：高矮、胖瘦都不一样，避免像等距套模 */
+const TIER_G = (() => {
+  const g = [];
+  for (let i = 0; i < TIERS; i++) {
+    const y0 = i * SPACING + (i === 0 ? 0 : rnd(-0.17, 0.17));
+    const y1 = i === TIERS - 1 ? TREE_H : Math.min(y0 + TIER_H * rnd(0.90, 1.12), TREE_H);
+    const r0 = BASE_R * (1 - 0.90 * (i / TIERS)) * rnd(0.94, 1.06);
+    const r1 = i === TIERS - 1 ? 0 : r0 * rnd(0.55, 0.72);
+    g.push({ y0, y1, r0, r1 });
+  }
+  return g;
+})();
+
+/* 树在某一高度的外轮廓半径（各层锥面的包络） */
+function surfaceR(y) {
+  let best = 0;
+  for (let i = 0; i < TIERS; i++) {
+    const g = TIER_G[i];
+    if (y < g.y0 || y > g.y1) continue;
+    const t = (y - g.y0) / Math.max(0.001, g.y1 - g.y0);
+    const r = g.r0 + (g.r1 - g.r0) * t;
+    if (r > best) best = r;
+  }
+  return best;
+}
+
+const treeP = [];
+
+(function buildTree() {
+  for (let i = 0; i < TIERS; i++) {
+    const g = TIER_G[i];
+    const span = g.y1 - g.y0;
+    const wob = i * 2.1;
+    const N = Math.round(720 * Q * (0.42 + 0.58 * (g.r0 / BASE_R))); const dim = 0.90 + 0.20 * Math.sin(i * 2.0);
+
+    /* 裙边灯串：勾出每一层的轮廓 */
+    const bulbs = Math.round((24 + g.r0 * 10) * Math.min(1, Q + 0.35));
+    for (let b = 0; b < bulbs; b++) {
+      const ang = (b / bulbs) * TAU + i * 0.55 + rnd(-0.02, 0.02);
+      const rad = g.r0 * rnd(0.99, 1.03);
+      treeP.push({
+        x: Math.cos(ang) * rad,
+        y: g.y0 + rnd(-0.06, 0.03),
+        z: Math.sin(ang) * rad,
+        s: rnd(0.055, 0.100),
+        c: Math.random() < 0.50 ? 1 : 2,
+        a: rnd(0.50, 0.90) * dim,
+        ph: Math.random() * TAU,
+        tw: rnd(1.0, 3.0),
+        twa: rnd(0.20, 0.55)
+      });
+    }
+
+    /* 垂坠毛刺：让每层边缘蓬松、有厚度，不与下一层黏成一片 */
+    const fringe = Math.round(N * 0.45);
+    for (let n = 0; n < fringe; n++) {
+      const ang = Math.random() * TAU;
+      const rad = g.r0 * rnd(0.82, 1.12);
+      treeP.push({
+        x: Math.cos(ang) * rad,
+        y: g.y0 - Math.pow(Math.random(), 1.7) * 0.30,
+        z: Math.sin(ang) * rad,
+        s: rnd(0.026, 0.055),
+        c: Math.random() < 0.22 ? 0 : Math.random() < 0.70 ? 2 : 3,
+        a: rnd(0.28, 0.68) * 0.95 * dim,
+        ph: Math.random() * TAU,
+        tw: rnd(1.0, 3.4),
+        twa: Math.random() < 0.18 ? rnd(0.50, 0.90) : rnd(0.08, 0.28)
+      });
+    }
+
+    /* 层身：近表面为主，向内补一层体积光，避免只剩空壳 */
+    for (let n = 0; n < N; n++) {
+      const v = Math.pow(Math.random(), 1.35);
+      const y = g.y0 + v * span;
+      const rSurf = g.r0 + (g.r1 - g.r0) * v;
+      const ang = Math.random() * TAU;
+
+      const shell = Math.random() < 0.56;
+      /* 多频扰动：轮廓一圈一圈地起伏，不再是一个光滑的锥面 */
+      const lump = 1
+        + 0.055 * Math.sin(ang * 3.0 + wob)
+        + 0.036 * Math.sin(ang * 7.0 + wob * 1.7 + 0.6)
+        + 0.022 * Math.sin(ang * 13.0 + 1.9)
+        + 0.032 * (Math.random() - 0.5);
+      let rad = shell ? rSurf * lump : rSurf * Math.pow(Math.random(), 0.80);
+      const rel = clamp(rad / Math.max(rSurf, 0.001), 0, 1);
+      /* 每层顶部压暗，让层与层之间有呼吸感（层次） */
+      const topFade = v > 0.76 ? lerp(1, 0.42, (v - 0.76) / 0.24) : 1;
+
+      treeP.push({
+        x: Math.cos(ang) * rad,
+        y: y + (Math.random() - 0.5) * 0.06,
+        z: Math.sin(ang) * rad,
+        s: shell ? rnd(0.023, 0.046) : rnd(0.018, 0.037),
+        c: Math.random() < 0.10 ? 0 : Math.random() < 0.62 ? 2 : 3,
+        a: rnd(0.26, 0.60) * 0.90 * dim * topFade * (shell ? 1 : 0.55 + 0.45 * rel * rel),
+        ph: Math.random() * TAU,
+        tw: rnd(1.0, 3.4),
+        twa: Math.random() < 0.16 ? rnd(0.55, 0.90) : rnd(0.08, 0.28)
+      });
+    }
+  }
+
+  /* 枝团：边缘一团一团地长出来，打散过于平整的锥面 */
+  for (let c = 0; c < Math.round(116 * Q); c++) {
+    const g = TIER_G[Math.floor(rnd(0, TIERS))];
+    const v = Math.pow(Math.random(), 1.1);
+    const y = g.y0 + v * (g.y1 - g.y0);
+    const rr = (g.r0 + (g.r1 - g.r0) * v) * rnd(0.92, 1.09);
+    const ang = Math.random() * TAU;
+    const cx = Math.cos(ang) * rr, cz = Math.sin(ang) * rr;
+    const n = 5 + Math.floor(Math.random() * 10);
+    const spread = rnd(0.08, 0.26);
+    const down = rnd(0.02, 0.18);
+    for (let k = 0; k < n; k++) {
+      treeP.push({
+        x: cx + rnd(-spread, spread),
+        y: y + rnd(-down, spread * 0.7),
+        z: cz + rnd(-spread, spread),
+        s: rnd(0.024, 0.056),
+        c: Math.random() < 0.20 ? 0 : Math.random() < 0.62 ? 2 : 3,
+        a: rnd(0.24, 0.64),
+        ph: Math.random() * TAU,
+        tw: rnd(1.0, 3.2),
+        twa: rnd(0.10, 0.42)
+      });
+    }
+  }
+
+  /* 树上的高光星点：更亮、闪烁更明显，给整棵树“点火” */
+  for (let n = 0; n < Math.round(240 * Q); n++) {
+    const i = Math.floor(rnd(0, TIERS));
+    const g = TIER_G[i];
+    const v = Math.pow(Math.random(), 1.1);
+    const y = g.y0 + v * (g.y1 - g.y0);
+    const rad = (g.r0 + (g.r1 - g.r0) * v) * rnd(0.90, 1.06);
+    const ang = Math.random() * TAU;
+    treeP.push({
+      x: Math.cos(ang) * rad,
+      y,
+      z: Math.sin(ang) * rad,
+      s: rnd(0.050, 0.110),
+      c: Math.random() < 0.70 ? 1 : 0,
+      a: rnd(0.65, 1.0),
+      ph: Math.random() * TAU,
+      tw: rnd(2.0, 5.0),
+      twa: rnd(0.55, 0.90)
+    });
+  }
+
+  /* 树上点缀的小灯 */
+  for (let n = 0; n < Math.round(90 * Q); n++) {
+    const i = Math.floor(rnd(0, TIERS));
+    const g = TIER_G[i];
+    const v = Math.pow(Math.random(), 1.3);
+    const y = g.y0 + v * (g.y1 - g.y0);
+    const rad = (g.r0 + (g.r1 - g.r0) * v) * rnd(1.0, 1.05);
+    const ang = Math.random() * TAU;
+    treeP.push({
+      x: Math.cos(ang) * rad,
+      y,
+      z: Math.sin(ang) * rad,
+      s: rnd(0.060, 0.105),
+      c: Math.random() < 0.5 ? 1 : Math.random() < 0.75 ? 3 : 4,
+      a: rnd(0.45, 0.85),
+      ph: Math.random() * TAU,
+      tw: rnd(1.4, 4.0),
+      twa: rnd(0.45, 0.90)
+    });
+  }
+})();
+
+/* =========================================================
+   二、丝带：贴着每层裙边盘旋而上，收敛于树顶
+   ========================================================= */
+const ribbon = [];
+(function buildRibbon() {
+  const raw = new Float32Array(RIB_N + 1);
+  for (let i = 0; i <= RIB_N; i++) {
+    const u = i / RIB_N;
+    const y = 0.14 + (TREE_H - 0.30) * Math.pow(u, 1.02);
+    raw[i] = surfaceR(y) * 1.008;
+  }
+  /* 轻平滑：贴住每层裙边，又不会硬折 */
+  let a = raw, b = new Float32Array(RIB_N + 1);
+  const win = 13;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i <= RIB_N; i++) {
+      let s = 0, c = 0;
+      for (let j = -win; j <= win; j++) {
+        const k = clamp(i + j, 0, RIB_N);
+        s += a[k]; c++;
+      }
+      b[i] = s / c;
+    }
+    const tmp = a; a = b; b = tmp;
+  }
+  for (let i = 0; i <= RIB_N; i++) {
+    const u = i / RIB_N;
+    /* 圈距不均匀：有的地方缠得紧、有的地方松 */
+    const ang = (u + 0.035 * Math.sin(u * TAU * 1.7 + 0.5)) * TAU * RIB_TURNS + 0.35;
+    const yBase = 0.14 + (TREE_H - 0.30) * Math.pow(u, 1.02);
+    /* 缠绕时上下轻微起伏，不是一条完美的螺旋线 */
+    const wob = clamp(a[i] / 2.2, 0.16, 1);   // 越靠树顶，起伏越小
+    const y = yBase + wob * (0.16 * Math.sin(ang) + 0.07 * Math.sin(ang * 2.1 + 1.2) + 0.10 * Math.sin(ang * 0.53 + 0.4));
+    /* 半径也跟着松紧变化，时贴时离 */
+    const rad = Math.max(a[i], 0.004) *
+      (1 + wob * (0.040 * Math.sin(ang * 1.6 + 0.8) + 0.022 * Math.sin(ang * 3.7 + 2.1)));
+    const et = clamp(u / 0.035, 0, 1) * clamp((1 - u) / 0.025, 0, 1);   // 两端收细，避免断面
+    ribbon.push({
+      x: Math.cos(ang) * rad,
+      y,
+      z: Math.sin(ang) * rad,
+      tw: et * (0.30 + 0.70 * Math.pow(Math.abs(Math.sin(u * TAU * RIB_TURNS * 2.1 + 0.6)), 0.7)),
+      ca: Math.cos(ang), sa: Math.sin(ang)
+    });
+  }
+})();
+
+const ribScr = new Float32Array((RIB_N + 1) * 3);
+const ribNrm = new Float32Array((RIB_N + 1) * 2);
+
+const ribSpark = [];
+for (let i = 0; i < 130; i++) {
+  ribSpark.push({ u: Math.random(), ph: Math.random() * TAU, sp: rnd(1.4, 3.6) });
+}
+
+/* =========================================================
+   三、树顶爱心：有厚度的心形体，由光粒子充满（无描边）
+   ========================================================= */
+const HEART_T = 0.50;          // 半厚度（相对 2 单位宽的心）
+const heartPts = [];           // x:宽  y:厚  z:高（心形自身坐标，未缩放）
+
+/* 经典心形曲线，按弧长均匀取点（否则尖点处会堆点） */
+const HEART_CURVE = (() => {
+  const M = 900, pts = [], cum = [0];
+  for (let i = 0; i <= M; i++) {
+    const t = (i / M) * TAU;
+    const st = Math.sin(t), ct = Math.cos(t);
+    pts.push([
+      st * st * st,
+      (13 * ct - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 16
+    ]);
+    if (i > 0) {
+      cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    }
+  }
+  return { pts, cum, total: cum[M] };
+})();
+
+function heartAt(split) {
+  const C = HEART_CURVE;
+  const target = split * C.total;
+  let lo = 0, hi = C.cum.length - 1;
+  while (lo < hi - 1) {
+    const m = (lo + hi) >> 1;
+    if (C.cum[m] <= target) lo = m; else hi = m;
+  }
+  const seg = C.cum[hi] - C.cum[lo] || 1;
+  const f = (target - C.cum[lo]) / seg;
+  return [
+    C.pts[lo][0] + (C.pts[hi][0] - C.pts[lo][0]) * f,
+    C.pts[lo][1] + (C.pts[hi][1] - C.pts[lo][1]) * f
+  ];
+}
+
+const HEART_POLY = (() => {
+  const n = 240, a = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) {
+    const p = heartAt(i / n);
+    a[i * 2] = p[0]; a[i * 2 + 1] = p[1];
+  }
+  return a;
+})();
+
+/* 一次遍历同时得到：是否在心形内、离边界多远 */
+function heartProbe(px, pz) {
+  const n = 240;
+  let inside = false, best = 1e9;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = HEART_POLY[i * 2], yi = HEART_POLY[i * 2 + 1];
+    const xj = HEART_POLY[j * 2], yj = HEART_POLY[j * 2 + 1];
+    if (((yi > pz) !== (yj > pz)) && (px < (xj - xi) * (pz - yi) / (yj - yi) + xi)) inside = !inside;
+    const dx = xj - xi, dy = yj - yi;
+    const tt = clamp(((px - xi) * dx + (pz - yi) * dy) / (dx * dx + dy * dy || 1e-6), 0, 1);
+    const ex = xi + dx * tt - px, ey = yi + dy * tt - pz;
+    const dd = ex * ex + ey * ey;
+    if (dd < best) best = dd;
+  }
+  return { inside, d: Math.sqrt(best) };
+}
+
+(function buildHeart() {
+  const N = Math.round(3800 * (0.6 + 0.4 * Q));
+  const LIGHT = [-0.40, 0.50, 0.76];   // 心形自身坐标里的来光方向（左上前）
+  const DMAX = 0.52;                    // 心形的最大内切深度
+
+  let made = 0, guard = 0;
+  while (made < N && guard < N * 40) {
+    guard++;
+    const px = rnd(-1.02, 1.02);
+    const pz = rnd(-1.12, 0.82);
+    const q = heartProbe(px, pz);
+    if (!q.inside) continue;
+    made++;
+
+    /* 厚度：越靠边界越薄，边缘收成一条棱，轮廓才是“实”的 */
+    const t = Math.min(1, q.d / DMAX);
+    const halfT = HEART_T * Math.pow(t, 0.55);
+    if (halfT < 0.004) continue;
+
+    const shell = Math.random() < 0.74;
+    const py = shell
+      ? (Math.random() < 0.5 ? 1 : -1) * halfT * (0.90 + 0.10 * Math.random())
+      : (Math.random() * 2 - 1) * halfT;
+
+    /* 方向光：让爱心有明暗，才像立体的而不是一团雾 */
+    const nl = Math.hypot(px, py * 1.8, pz) || 1;
+    const shade = clamp(0.74 + 0.26 * ((px * LIGHT[0] + py * 1.8 * LIGHT[1] + pz * LIGHT[2]) / nl), 0.50, 1.0);
+
+    heartPts.push({
+      x: px, y: py, z: pz,
+      s: shell ? rnd(0.018, 0.038) : rnd(0.014, 0.028),
+      c: Math.random() < 0.52 ? 1 : Math.random() < 0.86 ? 2 : 4,
+      a: (shell ? rnd(0.40, 0.82) : rnd(0.06, 0.16)) * shade,
+      ph: Math.random() * TAU,
+      tw: rnd(1.0, 3.2),
+      twa: rnd(0.12, 0.42)
+    });
+  }
+})();
+
+/* 树顶 → 爱心 的上升光流 */
+const streamP = [];
+for (let i = 0; i < 330; i++) {
+  streamP.push({
+    off: i / 330,
+    sp: rnd(0.30, 0.44),
+    rad: rnd(0.14, 0.58),
+    swirl: rnd(0, TAU),
+    spd: rnd(2.0, 4.0),
+    s: rnd(0.014, 0.034),
+    c: Math.random() < 0.55 ? 1 : Math.random() < 0.85 ? 2 : 4
+  });
+}
+
+/* 树顶爆散碎光 */
+const burstP = [];
+for (let i = 0; i < 80; i++) {
+  burstP.push({
+    a: Math.random() * TAU,
+    r: rnd(0.12, 0.75),
+    vy: rnd(-0.05, 0.5),
+    ph: rnd(0, TAU),
+    spd: rnd(0.4, 1.2),
+    s: rnd(0.014, 0.036),
+    c: Math.random() < 0.6 ? 1 : 2
+  });
+}
+
+/* =========================================================
+   四、树底涟漪
+   ========================================================= */
+const ripples = [];
+let rippleTimer = 0.15;
+
+function updateRipples(dt) {
+  if (BEATCLK.active) {
+    /* 有音乐时，涟漪按拍子往外推：每两拍一波 */
+    if (BEATCLK.hit && BEATCLK.idx % 2 === 0) {
+      ripples.push({ age: 0, life: rnd(2.5, 3.2), maxR: rnd(3.4, 5.4) });
+    }
+  } else {
+    rippleTimer -= dt;
+    if (rippleTimer <= 0) {
+      rippleTimer = rnd(0.9, 1.25);
+      ripples.push({ age: 0, life: rnd(2.6, 3.4), maxR: rnd(3.4, 5.4) });
+    }
+  }
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    ripples[i].age += dt * (BEATCLK.active ? 1.15 : 1);
+    if (ripples[i].age >= ripples[i].life) ripples.splice(i, 1);
+  }
+}
+
+const RING_SEG = 96;
+
+function drawRipples(t) {
+  ctx.globalAlpha = 1;
+  ctx.lineCap = 'round';
+
+  /* 同一条环用 3 种笔宽叠加：细亮线 + 中等光晕 + 大范围柔光 = 有厚度的水波 */
+  const WIDTHS = [1.7, 6.0, 17.0];
+  const ALPHAS = [1.0, 0.26, 0.07];
+
+  for (let i = 0; i < ripples.length; i++) {
+    const rp = ripples[i];
+    const u = rp.age / rp.life;
+    const rad = 0.55 + rp.maxR * (1 - Math.pow(1 - u, 2.4));
+    if (rad < 0.05) continue;
+    const a0 = Math.min(1, Math.pow(1 - u, 1.3) * 1.40 * Math.min(1, u * 10));
+
+    for (let pass = 0; pass < 3; pass++) {
+      ctx.beginPath();
+      let started = false;
+      for (let s = 0; s <= RING_SEG; s++) {
+        const a = (s / RING_SEG) * TAU;
+        const wob = 1 + 0.016 * Math.sin(a * 4 + t * 1.6 + i * 1.7);
+        const wy = 0.02 + 0.055 * Math.sin(a * 4 + t * 2.0 + i * 1.3);
+        if (!project(Math.cos(a) * rad * wob, wy, Math.sin(a) * rad * wob)) { started = false; continue; }
+        if (!started) { ctx.moveTo(P.x, P.y); started = true; }
+        else ctx.lineTo(P.x, P.y);
+      }
+      ctx.strokeStyle = pass === 0
+        ? `rgba(255,150,205,${a0 * ALPHAS[0]})`
+        : `rgba(255,116,184,${a0 * ALPHAS[pass]})`;
+      ctx.lineWidth = WIDTHS[pass];
+      ctx.stroke();
+    }
+
+    /* 内侧跟着一道更细的波纹 */
+    ctx.beginPath();
+    let started2 = false;
+    for (let s = 0; s <= RING_SEG; s++) {
+      const a = (s / RING_SEG) * TAU;
+      const rr = rad * 0.86;
+      const wy = 0.02 + 0.04 * Math.sin(a * 4 - t * 1.8 + i);
+      if (!project(Math.cos(a) * rr, wy, Math.sin(a) * rr)) { started2 = false; continue; }
+      if (!started2) { ctx.moveTo(P.x, P.y); started2 = true; }
+      else ctx.lineTo(P.x, P.y);
+    }
+    ctx.strokeStyle = `rgba(255,196,228,${a0 * 0.42})`;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+}
+
+/* =========================================================
+   五、粉色暴雪：远/中/近三层，密度、大小、速度都拉开，加阵风
+   ========================================================= */
+const SNOW_N = Math.round(2100 * Q);
+const snowP = [];
+for (let i = 0; i < SNOW_N; i++) {
+  const r = Math.random();
+  let s, a, vy;
+  if (r < 0.44) {              // 远景细雪：密但很淡
+    s = rnd(0.012, 0.030); a = rnd(0.14, 0.44); vy = rnd(1.9, 4.0);
+  } else if (r < 0.82) {       // 中景：主要体量
+    s = rnd(0.028, 0.066); a = rnd(0.28, 0.76); vy = rnd(3.0, 6.0);
+  } else {                     // 近景大雪片：虚、很大、很亮
+    s = rnd(0.085, 0.230); a = rnd(0.11, 0.30); vy = rnd(3.6, 7.0);
+  }
+  snowP.push({
+    x: rnd(-18, 18),
+    y: rnd(-2, 24),
+    z: rnd(-18, 18),
+    vy,
+    sw: rnd(0.15, 0.85),
+    ph: rnd(0, TAU),
+    s,
+    c: Math.random() < 0.55 ? 2 : Math.random() < 0.85 ? 1 : 0,
+    a
+  });
+}
+
+function updateSnow(dt, t) {
+  /* 稳定的强风：不加节拍脉冲，保持一直在快速下雪 */
+  const gust = 3.4 + 1.6 * Math.sin(t * 0.19) + 1.0 * Math.sin(t * 0.071 + 2.1);
+
+  for (let i = 0; i < SNOW_N; i++) {
+    const p = snowP[i];
+    p.y -= p.vy * dt;
+    p.x += (Math.sin(t * 0.7 + p.ph) * p.sw + gust * (0.35 + p.s * 5.5)) * dt;
+    p.z += Math.cos(t * 0.47 + p.ph) * 0.30 * dt;
+
+    if (p.y < -2.4 || p.x > 21 || p.x < -21 || p.z > 21 || p.z < -21) {
+      p.y = 23 + rnd(0, 7);
+      p.x = rnd(-19, 19);
+      p.z = rnd(-19, 19);
+    }
+  }
+}
+
+/* =========================================================
+   五·二、前景散景：靠近镜头的虚化光斑，拉开纵深
+   ========================================================= */
+const BOKEH_N = Math.round(16 * Q);
+const bokehP = [];
+for (let i = 0; i < BOKEH_N; i++) {
+  bokehP.push({
+    a: Math.random() * TAU,
+    r: rnd(5.5, 9.5),
+    y: rnd(0, 15),
+    vy: rnd(0.10, 0.36),
+    s: rnd(0.22, 0.55),
+    al: rnd(0.045, 0.105),
+    c: Math.random() < 0.5 ? 2 : 3,
+    ph: Math.random() * TAU
+  });
+}
+
+function updateBokeh(dt, t) {
+  for (let i = 0; i < BOKEH_N; i++) {
+    const b = bokehP[i];
+    b.y += b.vy * dt;
+    if (b.y > 15.5) b.y = -0.5;
+  }
+}
+
+function drawBokeh(t) {
+  for (let i = 0; i < BOKEH_N; i++) {
+    const b = bokehP[i];
+    const ang = b.a + Math.sin(t * 0.06 + b.ph) * 0.055;
+    if (!project(Math.cos(ang) * b.r, b.y, Math.sin(ang) * b.r)) continue;
+    spr(b.c, P.x, P.y, b.s * P.k, b.al * (0.65 + 0.35 * Math.sin(t * 0.7 + b.ph)));
+  }
+}
+
+/* =========================================================
+   六、背景星尘
+   ========================================================= */
+const starP = [];
+for (let i = 0; i < Math.round(190 * Q); i++) {
+  const a = Math.random() * TAU;
+  const rr = rnd(30, 54);
+  starP.push({
+    x: Math.cos(a) * rr,
+    y: rnd(-12, 40),
+    z: Math.sin(a) * rr,
+    s: rnd(0.018, 0.050),
+    a: rnd(0.08, 0.40),
+    ph: Math.random() * TAU,
+    tw: rnd(0.3, 1.2),
+    c: Math.random() < 0.72 ? 0 : 1
+  });
+}
+
+/* =========================================================
+   六·二、环绕漂浮的祝福窗（DOM 卡片跟随三维锚点绕树旋转）
+   ========================================================= */
+/* 标题 / 正文 / 高度：相邻角度的卡片高度错开，避免在屏幕上叠在一起 */
+const CARD_DATA = [
+  ['MERRY CHRISTMAS', '圣诞快乐，我的朋友'],
+  ['HAPPY NEW YEAR', '愿新的一年，事事顺心'],
+  ['TO MY FRIEND', '谢谢你又陪我走过一年'],
+  ['平安喜乐', '愿你被这世界温柔以待'],
+  ['ALL THE BEST', '所求皆如愿，所行化坦途'],
+  ['MERRY & BRIGHT', '愿圣诞与新年，都被光照亮'],
+  ['WISH YOU', '每一天都有小事值得开心'],
+  ['BEST WISHES', '愿你今年想要的，都慢慢拥有'],
+  ['HAPPY HOLIDAYS', '假期快乐，好好休息几天'],
+  ['SEASONS GREETINGS', '节日快乐，万事顺遂'],
+  ['CHEERS', '敬我们一起走过的这一年'],
+  ['TO YOU', '愿新的一年，睡得着也吃得好'],
+  ['GOOD LUCK', '愿好运一直站在你这边'],
+  ['SNOW & LIGHT', '愿这个冬天，雪和光都刚刚好'],
+  ['WARM WINTER', '愿这个冬天不太冷'],
+  ['GOOD TIMES', '新年快乐，一切都好'],
+  ['STAY WELL', '照顾好自己，慢慢来'],
+  ['SEE YOU', '愿我们明年再一起过'],
+  ['FIRST SNOW', '愿第一场雪落在你窗外'],
+  ['TO THE NEW YEAR', '新的一年，请多关照'],
+  ['BE MERRY', '愿你有酒有歌有朋友'],
+  ['HOLD ON', '难的时候，也记得抬头看灯'],
+  ['SWEET DREAMS', '愿你今晚睡得安稳'],
+  ['TAKE CARE', '天冷了，多穿一点'],
+  ['KEEP GOING', '你比想象中更能扛'],
+  ['STAY SOFT', '愿你被生活温柔以待'],
+  ['STAY WILD', '永远有想做的事'],
+  ['BRIGHT SIDE', '阴天也会过去的'],
+  ['LITTLE JOY', '愿小事都能让你开心'],
+  ['WARM LIGHT', '愿你身边总有一盏灯'],
+  ['HOME', '愿你随时都有地方可回'],
+  ['LOVELY DAY', '愿今天也顺利一点'],
+  ['GOOD NIGHT', '晚安，明天见'],
+  ['HELLO NEW YEAR', '新的一年，慢慢来'],
+  ['岁岁平安', '年年有今日'],
+  ['万事顺遂', '所行皆坦途'],
+  ['心想事成', '愿你想的都实现'],
+  ['前程似锦', '愿你去的地方都亮'],
+  ['一路生花', '愿你走过的地方都开花'],
+  ['温柔以待', '愿这世界对你柔软一点'],
+  ['好梦成真', '愿你睡得香甜'],
+  ['四季平安', '春夏秋冬都好'],
+  ['常乐', '知足常乐，笑口常开'],
+  ['有人爱', '愿你被爱，也爱人'],
+  ['HAPPY DAYS', '愿日子都亮亮的'],
+  ['FIRST LIGHT', '愿你每天都有好的开始'],
+  ['SOFT SNOW', '愿你的冬天下软软的雪'],
+  ['COZY NIGHT', '愿你有热汤和暖被'],
+  ['SWEET', '愿生活有点甜'],
+  ['TAKE IT EASY', '别太用力，也别放弃'],
+  ['BE KIND', '对自己也温柔一点'],
+  ['GOOD VIBES', '愿好事接连发生'],
+  ['LUCKY YOU', '愿你运气一直好'],
+  ['SHINE', '愿你自己就是光'],
+  ['DREAM BIG', '愿你的野心都被善待'],
+  ['STAY CURIOUS', '愿你对世界一直好奇'],
+  ['BREATHE', '深呼吸，都会过去的'],
+  ['SLOW DOWN', '慢一点也没关系'],
+  ['BE BRAVE', '愿你怕的事都能做到'],
+  ['FEEL GOOD', '愿你今天心情不错'],
+  ['ALWAYS YOU', '别弄丢了自己'],
+  ['NEW START', '一切都来得及'],
+  ['MERRY', '愿这一年有惊无险'],
+  ['BEST DAY', '愿今天是最好的一天'],
+  ['LET IT SNOW', '愿雪一直下，心一直是暖的'],
+  ['MERRY EVERYONE', '祝所有人都好'],
+  ['SOFTLY', '轻轻地，慢慢来'],
+  ['HOLD MY HAND', '我一直在'],
+  ['GOOD OMEN', '一切都会好起来'],
+  ['WINTER SUN', '愿冬日有太阳'],
+  ['CHEER UP', '振作一点，你也可以'],
+  ['STAY GOLD', '愿你不被磨平'],
+  ['ALL IS WELL', '一切安好'],
+  ['NO RUSH', '不急，慢慢来'],
+  ['BE PRESENT', '好好感受此刻'],
+  ['LOOK UP', '记得抬头看天'],
+  ['FIND JOY', '愿你找到快乐的小事'],
+  ['BE LOVED', '愿你被认真爱着'],
+  ['SO COZY', '愿你今天很舒服'],
+  ['PEACE', '平和，顺遂'],
+  ['HAPPY SOUL', '愿你的心是轻的'],
+  ['ONE MORE TIME', '再来一次也不怕'],
+  ['WARM HUG', '给你一个拥抱'],
+  ['HELLO WINTER', '冬天好呀'],
+  ['MAKE A WISH', '许个愿吧'],
+  ['GOOD THINGS', '好事正在路上'],
+  ['BLOOM', '愿你慢慢绽放'],
+  ['KEEP WARM', '记得保暖'],
+  ['SHINE ON', '愿你一直发光'],
+  ['STAY YOU', '你就做你自己']
+];
+
+const CARDS = [];
+(function buildCards() {
+  const box = document.getElementById('cards');
+  const GA = 2.39996323;   // 黄金角：卡片在环上分布得最散
+  for (let i = 0; i < CARD_DATA.length; i++) {
+    const el = document.createElement('div');
+    el.className = 'card';
+    const t1 = document.createElement('b');
+    t1.textContent = CARD_DATA[i][0];
+    const t2 = document.createElement('i');
+    t2.textContent = CARD_DATA[i][1];
+    el.appendChild(t1);
+    el.appendChild(t2);
+    box.appendChild(el);
+
+    CARDS.push({
+      el,
+      a0: i * GA + 0.4,
+      /* 多个半径 + 多个高度：近的远的都铺上，才填得满画面 */
+      r: 6.2 + ((i * 0.6180339887) % 1) * 4.6,
+      y: 0.5 + ((i * 0.4142135624) % 1) * 10.1,
+      /* 每张自带一个尺寸系数：大小差得开，画面才有层次 */
+      sc: 0.62 + ((i * 0.7548776662) % 1) * 0.95,
+      ph: rnd(0, TAU),
+      w: el.offsetWidth || 150,
+      h: el.offsetHeight || 54
+    });
+  }
+})();
+
+/* =========================================================
+   六·三、节拍时钟：让画面踩在 BGM 的拍子上
+   （BPM 与首拍位置是解码这首 mp3 后实测出来的）
+   ========================================================= */
+const BEATCLK = {
+  bpm: 110,
+  offset: 0.342,
+  active: false,
+  idx: -1,
+  phase: 0,
+  pulse: 0,
+  hit: false,
+  _last: -2
+};
+
+function updateBeat() {
+  let tRel = null, bpm = BEATCLK.bpm, off = BEATCLK.offset;
+
+  if (TRACK.using && TRACK.el) {
+    tRel = TRACK.el.currentTime;
+  } else if (SND.playing && SND.ctx) {
+    tRel = SND.ctx.currentTime - SND.base;
+    bpm = 100; off = 0;
+  }
+
+  if (tRel === null) {
+    BEATCLK.active = false; BEATCLK.pulse = 0; BEATCLK.hit = false; BEATCLK.idx = -1; BEATCLK._last = -2;
+    return;
+  }
+
+  BEATCLK.active = true;
+  const b = (tRel - off) * bpm / 60;
+  const idx = Math.floor(b);
+  const ph = b - idx;
+  BEATCLK.idx = idx;
+  BEATCLK.phase = ph;
+  BEATCLK.pulse = Math.pow(1 - ph, 2.6);   // 每拍起手最亮，然后迅速衰减
+  BEATCLK.hit = idx !== BEATCLK._last;
+  BEATCLK._last = idx;
+}
+
+function easeOutBack(x) {
+  const c1 = 1.70158, c3 = c1 + 1;
+  const u = x - 1;
+  return 1 + c3 * u * u * u + c1 * u * u;
+}
+
+function updateCards(t, dt) {
+  const kRef = fovScale / cam.dist;
+  const maxScale = IS_MOBILE ? 0.62 : Math.min(1.35, Math.max(0.68, W / 1020));
+  /* 竖屏时可视区域窄，轨道往里收，卡片才落在树旁边的空白里 */
+  const rScale = clamp(0.55 + 0.45 * (W / H) / 1.5, 0.66, 1);
+  const list = [];
+
+  for (let i = 0; i < CARDS.length; i++) {
+    const c = CARDS[i];
+    const ang = c.a0 + t * 0.068;
+    const rr = (c.r + Math.sin(t * 0.23 + c.ph) * 0.30) * rScale;
+    const x = Math.cos(ang) * rr;
+    const z = Math.sin(ang) * rr;
+    const y = c.y + Math.sin(t * 0.52 + c.ph) * 0.35;
+
+    if (!project(x, y, z)) {
+      list.push({ c, vz: 1e9, x: 0, y: 0, w: 0, h: 0, s: 1, want: false });
+      continue;
+    }
+
+    const s = Math.min(IS_MOBILE ? 1.0 : 1.85, clamp(P.k / kRef, 0.72, maxScale) * c.sc);
+    const w = c.w * s, h = c.h * s;
+
+    /* 压到树不再直接消失，只是压暗 —— 允许一部分窗从树前/树后穿过去 */
+    const yy = clamp(y, 0.3, TREE_H - 0.3);
+    const treeHalf = Math.max(28, surfaceR(yy) * P.k);
+    const inner = Math.abs(P.x - cx) - w * 0.45;
+    const over = clamp((treeHalf * 1.05 - inner) / Math.max(70, treeHalf * 0.85), 0, 1);
+    /* 底部是「Merry Christmas」的位置，卡片别压上去 */
+    const nearTitle = (P.y > H - 118 && Math.abs(P.x - cx) < 470) ? 0.10 : 1;
+    const dim = (1 - (IS_MOBILE ? 0.9 : 0.74) * over) * nearTitle;
+
+    /* 卡片出画时藏起来，避免半个卡片贴在边上 */
+    const visX = clamp((Math.min(P.x + w * 0.5, W) - Math.max(P.x - w * 0.5, 0)) / w, 0, 1);
+    const visY = clamp((Math.min(P.y + h * 0.5, H) - Math.max(P.y - h * 0.5, 0)) / h, 0, 1);
+    const edge = Math.min(visX, visY);
+    const es = clamp((edge - 0.90) / 0.08, 0, 1);
+    const edgeFade = es * es * (3 - 2 * es);
+
+    list.push({
+      c, vz: P.vz, x: P.x, y: P.y, w, h, s,
+      dim,
+      want: edgeFade > 0.80
+    });
+  }
+
+  /* 近的先占位，被压住的让位 */
+  list.sort((a, b) => a.vz - b.vz);
+  const taken = [];
+  for (let i = 0; i < list.length; i++) {
+    const v = list[i];
+    let ok = v.want;
+    if (ok) {
+      for (let j = 0; j < taken.length; j++) {
+        const q = taken[j];
+        if (Math.abs(v.x - q.x) < (v.w + q.w) * 0.47 + 8 &&
+            Math.abs(v.y - q.y) < (v.h + q.h) * 0.48 + 6) { ok = false; break; }
+      }
+      if (ok && taken.length < (IS_MOBILE ? 8 : 999)) taken.push(v); else ok = false;
+    }
+    v.ok = ok;
+  }
+
+  /* 出场要卡在拍子上：每拍最多放两张，弹出动画 0.16 秒带一点回弹 */
+  let popsLeft = BEATCLK.active ? (BEATCLK.hit ? 4 : 0) : 999;
+
+  for (let i = 0; i < list.length; i++) {
+    const v = list[i];
+    const c = v.c;
+    if (c.op === undefined) { c.op = 0; c.on = false; c.t0 = -9; }
+
+    if (v.ok && !c.on) {
+      if (popsLeft > 0) { c.on = true; c.t0 = t; popsLeft--; }
+    } else if (!v.ok && c.on) {
+      c.on = false;
+    }
+
+    /* 压在树上时整体压暗，透出下面的树 */
+    const target = c.on ? v.dim * (0.94 + 0.06 * Math.sin(t * 0.8 + c.ph)) : 0;
+    const rate = target > c.op ? 15 : 26;        // 出来快，收回去更快
+    c.op += (target - c.op) * Math.min(1, dt * rate);
+    if (c.op < 0.004) c.op = 0;
+
+    const el = c.el;
+    el.style.opacity = c.op.toFixed(3);
+    if (v.x === 0 && v.y === 0) continue;
+
+    let mul = 1;
+    if (c.on) {
+      const p = clamp((t - c.t0) / 0.16, 0, 1);
+      mul = 0.62 + 0.38 * easeOutBack(p);        // 从 62% 弹到 100%，略微过冲
+    }
+
+    /* 用 transform 定位（不走 layout），几十张卡片同时更新也不卡 */
+    el.style.transform =
+      'translate3d(' + v.x.toFixed(1) + 'px,' + v.y.toFixed(1) + 'px,0) ' +
+      'translate(-50%,-50%) scale(' + (v.s * mul).toFixed(3) + ')';
+    el.style.zIndex = String(2000 - Math.round(v.vz));
+  }
+}
+
+/* =========================================================
+   绘制
+   ========================================================= */
+function drawStars(t) {
+  for (let i = 0; i < starP.length; i++) {
+    const p = starP[i];
+    if (!project(p.x, p.y, p.z)) continue;
+    spr(p.c, P.x, P.y, p.s * P.k, p.a * (0.55 + 0.45 * Math.sin(t * p.tw + p.ph)) * 0.75);
+  }
+}
+
+function drawFloorGlow(t) {
+  if (!project(0, 0.02, 0)) return;
+  const pulse = 0.9 + 0.1 * Math.sin(t * 1.1);
+  spr(4, P.x, P.y, 3.6 * P.k, 0.052 * pulse);
+  spr(3, P.x, P.y, 1.6 * P.k, 0.095 * pulse);
+}
+
+function drawTree(t) {
+  /* 地面倒影：只取靠近底部的粒子 */
+  for (let i = 0; i < treeP.length; i++) {
+    const p = treeP[i];
+    if (p.y > 5.0) continue;
+    if (!project(p.x, -p.y * 0.60, p.z)) continue;
+    const fade = 1 - p.y / 5.0;
+    spr(p.c, P.x, P.y, p.s * P.k * 1.45, p.a * 0.105 * fade * fog(P.vz));
+  }
+
+  /* 树体 */
+  for (let i = 0; i < treeP.length; i++) {
+    const p = treeP[i];
+    if (!project(p.x, p.y, p.z)) continue;
+    const twk = 0.74 + p.twa * Math.sin(t * p.tw + p.ph);
+    spr(p.c, P.x, P.y, p.s * P.k * 0.95, p.a * 1.24 * twk * fog(P.vz));
+  }
+}
+
+function drawRibbon(t) {
+  ctx.globalAlpha = 1;
+  for (let i = 0; i <= RIB_N; i++) {
+    const p = ribbon[i];
+    if (!project(p.x, p.y, p.z)) return;
+    ribScr[i * 3] = P.x;
+    ribScr[i * 3 + 1] = P.y;
+    ribScr[i * 3 + 2] = P.k;
+  }
+  for (let i = 0; i <= RIB_N; i++) {
+    const i0 = Math.max(0, i - 1), i1 = Math.min(RIB_N, i + 1);
+    const tx = ribScr[i1 * 3] - ribScr[i0 * 3];
+    const ty = ribScr[i1 * 3 + 1] - ribScr[i0 * 3 + 1];
+    const l = Math.hypot(tx, ty) || 1;
+    ribNrm[i * 2] = -ty / l;
+    ribNrm[i * 2 + 1] = tx / l;
+  }
+
+  /* 分段填充：朝镜头的一半亮、背面的一半暗——丝带才会真的“绕到树后面去” */
+  const sy = Math.sin(cam.yaw), cyw = Math.cos(cam.yaw);
+  const CH = 72, step = (RIB_N + 1) / CH;
+  for (let c = 0; c < CH; c++) {
+    const i0 = Math.round(c * step), i1 = Math.min(RIB_N, Math.round((c + 1) * step));
+    if (i1 <= i0) continue;
+
+    let fs = 0;
+    for (let i = i0; i <= i1; i++) fs += ribbon[i].ca * sy + ribbon[i].sa * cyw;
+    const lit = clamp((fs / (i1 - i0 + 1)) * 1.7 + 0.45, 0.34, 1);
+
+    ctx.beginPath();
+    for (let i = i0; i <= i1; i++) {
+      const hw = RIB_HW * ribbon[i].tw * ribScr[i * 3 + 2];
+      const x = ribScr[i * 3] + ribNrm[i * 2] * hw;
+      const y = ribScr[i * 3 + 1] + ribNrm[i * 2 + 1] * hw;
+      if (i === i0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    for (let i = i1; i >= i0; i--) {
+      const hw = RIB_HW * ribbon[i].tw * ribScr[i * 3 + 2];
+      ctx.lineTo(ribScr[i * 3] - ribNrm[i * 2] * hw, ribScr[i * 3 + 1] - ribNrm[i * 2 + 1] * hw);
+    }
+    ctx.closePath();
+    ctx.fillStyle = `rgba(255,110,178,${0.205 * lit})`;
+    ctx.fill();
+
+    /* 只给正面那一道边缘打高光，像缎带的受光边 */
+    ctx.beginPath();
+    for (let i = i0; i <= i1; i++) {
+      const hw = RIB_HW * ribbon[i].tw * ribScr[i * 3 + 2];
+      const x = ribScr[i * 3] + ribNrm[i * 2] * hw;
+      const y = ribScr[i * 3 + 1] + ribNrm[i * 2 + 1] * hw;
+      if (i === i0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = `rgba(255,232,246,${0.34 * lit})`;
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+  }
+
+  for (let i = 0; i < ribSpark.length; i++) {
+    const sp = ribSpark[i];
+    const idx = Math.round(sp.u * RIB_N);
+    const k = ribScr[idx * 3 + 2];
+    const front = clamp(ribbon[idx].ca * sy + ribbon[idx].sa * cyw + 0.35, 0, 1);
+    const pulse = Math.pow(Math.max(0, Math.sin(t * sp.sp + sp.ph)), 6);
+    if (pulse < 0.02) continue;
+    spr(1, ribScr[idx * 3], ribScr[idx * 3 + 1], 0.055 * k, pulse * 0.7 * front);
+  }
+}
+
+function heartScale(t) {
+  return HEART_SCALE * (1 + 0.028 * Math.sin(t * 1.7) + 0.012 * Math.sin(t * 3.9 + 1.1));
+}
+
+function drawHeart(t) {
+  const s = heartScale(t);
+  const pulse = s / HEART_SCALE;
+
+  /* 自身轴缓慢摆动：既能看清是个立体的心，又不会转到侧面变成一团 */
+  const yaw = cam.yaw + 0.55 * Math.sin(t * 0.13);
+  const ca = Math.cos(yaw), sa = Math.sin(yaw);
+
+  if (project(0, HEART_Y, 0)) {
+
+  }
+
+  for (let i = 0; i < heartPts.length; i++) {
+    const p = heartPts[i];
+    const px = p.x * s, pz = p.y * s;         // p.y 是厚度方向
+    const wx = px * ca + pz * sa;
+    const wz = -px * sa + pz * ca;
+    if (!project(wx, HEART_Y + p.z * s, wz)) continue;
+    const twk = 0.82 + p.twa * Math.sin(t * p.tw + p.ph);
+    spr(p.c, P.x, P.y, p.s * P.k, p.a * twk * pulse * fog(P.vz));
+  }
+}
+
+function drawStream(t) {
+  const s = heartScale(t);
+  const by = HEART_Y + HEART_BOT * s;
+  const ay = TREE_H - 0.02;
+
+  for (let i = 0; i < streamP.length; i++) {
+    const p = streamP[i];
+    let ph = p.off + t * p.sp;
+    ph -= Math.floor(ph);
+    const e = Math.pow(ph, 1.25);
+    const swing = Math.sin(ph * Math.PI) * (1 - ph * 0.5);
+    const ang = p.swirl + t * p.spd * 0.5 + ph * 5.5;
+
+    const x = Math.cos(ang) * p.rad * swing;
+    const y = lerp(ay, by, e);
+    const z = Math.sin(ang) * p.rad * swing;
+
+    if (!project(x, y, z)) continue;
+    spr(p.c, P.x, P.y, p.s * P.k, Math.sin(Math.PI * Math.pow(ph, 0.85)) * 1.0);
+  }
+
+  for (let i = 0; i < burstP.length; i++) {
+    const p = burstP[i];
+    const a = p.a + t * p.spd;
+    const rr = p.r * (0.7 + 0.3 * Math.sin(t * 0.8 + p.ph));
+    const y = TREE_H - 0.02 + p.vy * Math.sin(t * 0.9 + p.ph) * 0.45;
+    if (!project(Math.cos(a) * rr, y, Math.sin(a) * rr)) continue;
+    spr(p.c, P.x, P.y, p.s * P.k, 0.45 + 0.35 * Math.sin(t * 2.2 + p.ph));
+  }
+}
+
+function drawSnow(t) {
+  for (let i = 0; i < SNOW_N; i++) {
+    const p = snowP[i];
+    if (!project(p.x, p.y, p.z)) continue;
+    spr(p.c, P.x, P.y, p.s * P.k, p.a * (0.62 + 0.38 * Math.sin(t * 1.3 + p.ph)) * fog(P.vz) * 0.9);
+  }
+}
+
+/* ---------------- Bloom：只让“亮的地方”发光，不是整幅抬亮 ---------------- */
+function bloom() {
+  bctx.setTransform(1, 0, 0, 1, 0, 0);
+  bctx.globalCompositeOperation = 'copy';
+  /* 先压对比：暗部被压成黑，只有亮的粒子和丝带才会被提取出来参与泛光 */
+  bctx.filter = 'contrast(2.0) brightness(0.76)';
+  bctx.drawImage(canvas, 0, 0, bloomCv.width, bloomCv.height);
+  bctx.filter = 'none';
+
+  if (!IS_MOBILE) {
+    b2ctx.setTransform(1, 0, 0, 1, 0, 0);
+    b2ctx.globalCompositeOperation = 'copy';
+    b2ctx.drawImage(bloomCv, 0, 0, bloom2.width, bloom2.height);
+  }
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 0.52;
+  ctx.drawImage(bloomCv, 0, 0, canvas.width, canvas.height);
+  if (!IS_MOBILE) {
+    ctx.globalAlpha = 0.22;
+    ctx.drawImage(bloom2, 0, 0, canvas.width, canvas.height);
+  }
+  ctx.restore();
+}
+
+/* ---------------- 主循环 ---------------- */
+let lastT = 0, time = 0;
+
+function render(dt, t) {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.globalCompositeOperation = 'lighter';
+
+  drawStars(t);
+  updateRipples(dt);
+  drawRipples(t);
+  drawFloorGlow(t);
+  drawTree(t);
+  drawRibbon(t);
+  drawStream(t);
+  drawHeart(t);
+  updateSnow(dt, t);
+  drawSnow(t);
+  updateBokeh(dt, t);
+  drawBokeh(t);
+
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  bloom();
+  updateCards(t, dt);
+}
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000 || 0.016);
+  lastT = now;
+  time += dt;
+  updateCamera(dt, time);
+  updateBeat();
+  render(dt, time);
+  requestAnimationFrame(frame);
+}
+
+/* ---------------- 尺寸 ---------------- */
+function resize() {
+  /* 高分屏按真实 DPR 渲染：原来封顶 2，在 250%/300% 缩放的屏幕上会被浏览器
+     放大一次，整幅画就糊了。这里放到 3，同时用像素总量兜住性能 */
+  DPR = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+  const budget = IS_MOBILE ? 3.6e6 : 16e6;
+  while (window.innerWidth * window.innerHeight * DPR * DPR > budget && DPR > 1) DPR *= 0.85;
+  W = Math.max(1, window.innerWidth);
+  H = Math.max(1, window.innerHeight);
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  bloomCv.width = Math.max(1, Math.round(W / 4));
+  bloomCv.height = Math.max(1, Math.round(H / 4));
+  bloom2.width = Math.max(1, Math.round(W / 13));
+  bloom2.height = Math.max(1, Math.round(H / 13));
+  cx = W * 0.5;
+  cy = H * 0.5;
+
+  bgGrad = ctx.createRadialGradient(cx, H * 0.62, 0, cx, H * 0.62, Math.max(W, H) * 0.98);
+  bgGrad.addColorStop(0.00, '#1c0a15');
+  bgGrad.addColorStop(0.36, '#120712');
+  bgGrad.addColorStop(0.70, '#0a0410');
+  bgGrad.addColorStop(1.00, '#050208');
+
+  fitCamera();
+}
+
+window.addEventListener('resize', resize);
+resize();
+requestAnimationFrame((t) => { lastT = t; frame(t); });
+
+setTimeout(() => document.getElementById('greet').classList.add('on'), 260);
+
+/* =========================================================
+   七、音乐：Web Audio 合成钢琴，《Jingle Bells》（1857，公版颂曲）
+   ========================================================= */
+const SND = { ctx: null, master: null, conv: null, playing: false, muted: false, timer: null, next: 0 };
+
+const BPM = 100;
+const BEAT = 60 / BPM;
+const LOOP_BEATS = 72;      // 2 小节前奏 + 16 小节副歌
+
+/* [起始拍, 音高, 时值(拍)] —— 一遍“叮叮当，叮叮当，铃儿响叮当” */
+const MEL = [
+  /* Jingle bells, jingle bells, jingle all the way */
+  [8, 64, 1], [9, 64, 1], [10, 64, 2.4],
+  [12, 64, 1], [13, 64, 1], [14, 64, 2.4],
+  [16, 64, 1], [17, 67, 1], [18, 72, 1], [19, 74, 1],
+  [20, 76, 3.2],
+  /* Oh what fun it is to ride in a one-horse open sleigh */
+  [24, 77, 1], [25, 77, 1], [26, 77, 1], [27, 77, 1],
+  [28, 77, 1], [29, 76, 1], [30, 76, 1], [31, 76, 1],
+  [32, 76, 1], [33, 74, 1], [34, 74, 1], [35, 76, 1],
+  [36, 74, 2], [38, 67, 2],
+  /* 再来一遍 */
+  [40, 64, 1], [41, 64, 1], [42, 64, 2.4],
+  [44, 64, 1], [45, 64, 1], [46, 64, 2.4],
+  [48, 64, 1], [49, 67, 1], [50, 72, 1], [51, 74, 1],
+  [52, 76, 3.2],
+  [56, 77, 1], [57, 77, 1], [58, 77, 1], [59, 77, 1],
+  [60, 77, 1], [61, 76, 1], [62, 76, 1], [63, 76, 1],
+  [64, 79, 1], [65, 79, 1], [66, 77, 1], [67, 74, 1],
+  [68, 72, 3.4]
+];
+
+/* 每小节：低音 + 和弦（“嘭-恰”式伴奏） */
+const C_CH = [64, 67, 72];
+const F_CH = [65, 69, 72];
+const G_CH = [62, 65, 71];
+const BARS = [
+  { bass: 48, chord: C_CH }, { bass: 43, chord: G_CH },   // 前奏
+  { bass: 48, chord: C_CH }, { bass: 48, chord: C_CH },
+  { bass: 48, chord: C_CH }, { bass: 48, chord: C_CH },
+  { bass: 41, chord: F_CH }, { bass: 48, chord: C_CH },
+  { bass: 43, chord: G_CH }, { bass: 43, chord: G_CH },
+  { bass: 48, chord: C_CH }, { bass: 48, chord: C_CH },
+  { bass: 48, chord: C_CH }, { bass: 48, chord: C_CH },
+  { bass: 41, chord: F_CH }, { bass: 48, chord: C_CH },
+  { bass: 43, chord: G_CH }, { bass: 48, chord: C_CH }
+];
+
+function makeImpulse(ac, seconds, decay) {
+  const rate = ac.sampleRate;
+  const len = Math.floor(rate * seconds);
+  const buf = ac.createBuffer(2, len, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+  }
+  return buf;
+}
+
+/* 钢琴音色：几个泛音各自以不同速度衰减，再叠一个随音高变化的低通 */
+const PARTIALS = [
+  [1.000, 1.00, 1.00],
+  [2.003, 0.32, 0.55],
+  [3.006, 0.13, 0.34],
+  [4.012, 0.055, 0.22]
+];
+
+function pianoNote(t, midi, dur, gain) {
+  const ac = SND.ctx;
+  const f = 440 * Math.pow(2, (midi - 69) / 12);
+
+  const lp = ac.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.Q.value = 0.5;
+  lp.frequency.setValueAtTime(Math.min(9500, f * 10), t);
+  lp.frequency.exponentialRampToValueAtTime(Math.max(600, f * 3), t + Math.max(0.35, dur * 0.7));
+  lp.connect(SND.master);
+  lp.connect(SND.conv);
+
+  for (let i = 0; i < PARTIALS.length; i++) {
+    const mul = PARTIALS[i][0], amp = PARTIALS[i][1], ds = PARTIALS[i][2];
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.value = f * mul;
+    const d = dur * ds;
+    const peak = amp * gain;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(peak * 0.34, t + d * 0.34);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g);
+    g.connect(lp);
+    o.start(t);
+    o.stop(t + d + 0.05);
+  }
+}
+
+/* 把所有音符摊平成一条按时间排序的事件流，播放时只往前排 2 秒，
+   避免一次建出整首曲子的振荡器 */
+const EVENTS = (() => {
+  const ev = [];
+  for (let i = 0; i < MEL.length; i++) {
+    const m = MEL[i];
+    ev.push({ b: m[0], m: m[1], dur: Math.max(1.5, m[2]) + 0.9, g: 0.20 });
+  }
+  for (let bar = 0; bar < BARS.length; bar++) {
+    const bs = BARS[bar];
+    for (let k = 0; k < 4; k += 2) ev.push({ b: bar * 4 + k, m: bs.bass, dur: 1.9, g: 0.105 });
+    for (let k = 1; k < 4; k += 2) {
+      for (let n = 0; n < bs.chord.length; n++) {
+        ev.push({ b: bar * 4 + k, m: bs.chord[n], dur: 1.1, g: 0.048 });
+      }
+    }
+  }
+  ev.sort((a, b) => a.b - b.b);
+  return ev;
+})();
+
+let evIdx = 0, loopOff = 0;
+
+function scheduleLoop() {
+  const ac = SND.ctx;
+  if (!ac || !SND.playing) return;
+  const horizon = ac.currentTime + 2.0;
+  for (let guard = 0; guard < 4000; guard++) {
+    if (evIdx >= EVENTS.length) {
+      evIdx = 0;
+      loopOff += LOOP_BEATS * BEAT;
+    }
+    const ev = EVENTS[evIdx];
+    const t = SND.base + loopOff + ev.b * BEAT;
+    if (t > horizon) break;
+    if (t >= ac.currentTime - 0.05) {
+      pianoNote(t, ev.m, ev.dur * BEAT, ev.g * (1 + (Math.random() - 0.5) * 0.12));
+    }
+    evIdx++;
+  }
+}
+
+/* =========================================================
+   八、播放：优先用随附的 jingle-bells.mp3；
+   读不到（文件被移动/浏览器拦截）就回退到上面合成的钢琴版
+   ========================================================= */
+const TRACK = { el: null, using: false, muted: false, vol: 0.62, fade: null, broken: false };
+
+function ensureTrack() {
+  if (!TRACK.el) {
+    const el = new Audio('jingle-bells.mp3');
+    el.loop = true;
+    el.preload = IS_MOBILE ? 'none' : 'auto';   // 手机先不下载 5MB 音频，点了才拉
+    el.volume = 0;
+    el.addEventListener('error', () => { TRACK.broken = true; });
+    TRACK.el = el;
+  }
+  return TRACK.el;
+}
+
+function fadeTrack(to, ms) {
+  const el = TRACK.el;
+  if (!el) return;
+  if (TRACK.fade) clearInterval(TRACK.fade);
+  const from = el.volume, t0 = performance.now();
+  TRACK.fade = setInterval(() => {
+    const k = Math.min(1, (performance.now() - t0) / ms);
+    el.volume = Math.max(0, Math.min(1, from + (to - from) * k));
+    if (k >= 1) { clearInterval(TRACK.fade); TRACK.fade = null; }
+  }, 40);
+}
+
+function musicOnUI() {
+  document.getElementById('snd').classList.add('playing');
+  document.getElementById('hint').classList.add('hide');
+}
+
+/* 合成钢琴版（保底） */
+function startSynth() {
+  if (SND.playing) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!SND.ctx) {
+      const ac = new AC();
+      SND.ctx = ac;
+      const master = ac.createGain();
+      master.gain.value = 0;
+      master.connect(ac.destination);
+      SND.master = master;
+      const conv = ac.createConvolver();
+      conv.buffer = makeImpulse(ac, 2.8, 2.4);
+      const wet = ac.createGain();
+      wet.gain.value = 0.34;
+      conv.connect(wet); wet.connect(master);
+      SND.conv = conv;
+    }
+    if (SND.ctx.state === 'suspended') SND.ctx.resume();
+    SND.playing = true;
+    SND.base = SND.ctx.currentTime + 0.35;
+    evIdx = 0;
+    loopOff = 0;
+    SND.master.gain.cancelScheduledValues(SND.ctx.currentTime);
+    SND.master.gain.setValueAtTime(0.0001, SND.ctx.currentTime);
+    SND.master.gain.linearRampToValueAtTime(0.40, SND.ctx.currentTime + 2.6);
+    scheduleLoop();
+    SND.timer = setInterval(scheduleLoop, 250);
+    musicOnUI();
+  } catch (e) { /* 不支持 Web Audio 时静默降级 */ }
+}
+
+function startMusic() {
+  if (TRACK.using || SND.playing) return;
+  if (TRACK.broken) { startSynth(); return; }
+
+  const el = ensureTrack();
+  let p;
+  try { p = el.play(); } catch (e) { startSynth(); return; }
+
+  if (p && typeof p.then === 'function') {
+    p.then(() => {
+      TRACK.using = true;
+      fadeTrack(TRACK.muted ? 0 : TRACK.vol, 1600);
+      musicOnUI();
+    }).catch(() => {
+      TRACK.broken = true;
+      startSynth();
+    });
+  } else {
+    TRACK.using = true;
+    fadeTrack(TRACK.vol, 1600);
+    musicOnUI();
+  }
+}
+
+function toggleMute() {
+  const btn = document.getElementById('snd');
+
+  if (TRACK.using) {
+    TRACK.muted = !TRACK.muted;
+    TRACK.el.muted = TRACK.muted;
+    btn.style.color = TRACK.muted ? 'rgba(255,205,232,.35)' : '';
+    return;
+  }
+
+  if (!SND.playing) { SND.muted = false; startMusic(); return; }
+
+  SND.muted = !SND.muted;
+  const t = SND.ctx.currentTime;
+  SND.master.gain.cancelScheduledValues(t);
+  SND.master.gain.setValueAtTime(SND.master.gain.value, t);
+  SND.master.gain.linearRampToValueAtTime(SND.muted ? 0.0001 : 0.40, t + 0.6);
+  btn.style.color = SND.muted ? 'rgba(255,205,232,.35)' : '';
+}
+
+document.getElementById('snd').addEventListener('click', (e) => { e.stopPropagation(); toggleMute(); });
+
+window.addEventListener('pointerdown', () => { startMusic(); }, { once: true });
+window.addEventListener('keydown', () => { startMusic(); }, { once: true });
+
+})();
+</script>
+</body>
+</html>
